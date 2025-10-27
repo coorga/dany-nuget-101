@@ -14,7 +14,7 @@
 
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
-        <IncludeSymbols>true</IncludeSymbols>
+        <IncludeSymbols>false</IncludeSymbols>
         <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
         <Deterministic>true</Deterministic>
         <DebugType>embedded</DebugType>
