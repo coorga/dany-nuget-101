@@ -17,13 +17,13 @@ jobs:
           dotnet-version: '9.0.x'
 
       - name: Restore
-        run: dotnet restore
+        run: dotnet restore NuGetSample/NuGetSample.sln
 
       - name: Build
-        run: dotnet build --configuration Release
+        run: dotnet build NuGetSample/NuGetSample.sln --configuration Release
 
       - name: Pack
-        run: dotnet pack --configuration Release -o ./nupkgs
+        run: dotnet pack NuGetSample/NuGetSample.sln --configuration Release -o ./nupkgs
 
       - name: Publish to GitHub Packages
         run: dotnet nuget push "./nupkgs/*.nupkg" --source "github" --api-key ${{ secrets.GITHUB_TOKEN }}
