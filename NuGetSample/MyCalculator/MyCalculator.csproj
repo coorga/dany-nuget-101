@@ -4,37 +4,31 @@
         <TargetFramework>net9.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
-        <OutputType>Library</OutputType>
 
+        <Version>1.0.5</Version>
         <PackageId>MyCalculator</PackageId>
-        <Version>1.0.3</Version>
         <Authors>Danylo Liubymyi</Authors>
-        <Description>Simple calculator for tests</Description>
+        <Description>Simple Calculator for tests</Description>
         <RepositoryUrl>https://github.com/coorga/dany-nuget-101.git</RepositoryUrl>
-        <RepositoryType>git</RepositoryType>
         <PackageLicenseExpression>MIT</PackageLicenseExpression>
 
         <PublishRepositoryUrl>true</PublishRepositoryUrl>
         <EmbedUntrackedSources>true</EmbedUntrackedSources>
         <IncludeSymbols>true</IncludeSymbols>
-        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
         <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
         <Deterministic>true</Deterministic>
         <DebugType>embedded</DebugType>
         <DebugSymbols>true</DebugSymbols>
-
-        <IncludeBuildOutput>true</IncludeBuildOutput>
-        <BuildOutputTargetFolder>lib\$(TargetFramework)</BuildOutputTargetFolder>
     </PropertyGroup>
-
-    <Target Name="ForceIncludeDll" AfterTargets="Build">
-        <ItemGroup>
-            <TfmSpecificPackageFile Include="$(OutputPath)MyCalculator.dll" PackagePath="lib\$(TargetFramework)" />
-        </ItemGroup>
-    </Target>
 
     <ItemGroup>
         <PackageReference Include="Microsoft.SourceLink.GitHub" Version="8.0.0" PrivateAssets="All" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="$(OutputPath)MyCalculator.dll"
+              Pack="true"
+              PackagePath="lib\$(TargetFramework)\" />
     </ItemGroup>
 
 </Project>
