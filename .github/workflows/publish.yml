@@ -24,7 +24,14 @@ jobs:
 
       - name: Pack
         run: dotnet pack NuGetSample/NuGetSample.sln --configuration Release -o ./nupkgs
-        
+      
+      - name: Upload NuGet artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyCalculator-${{ github.ref_name }}
+          path: ./nupkgs
+          retention-days: 30
+      
       - name: Add GitHub Packages source
         run: dotnet nuget add source --username ${{ github.actor }} --password ${{ secrets.GH_PACKAGES_TOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
         
