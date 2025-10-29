@@ -130,9 +130,7 @@ jobs:
           
           Write-Host "##[group]🔍 Pushing Symbol Packages to GitHub" -ForegroundColor Yellow
           
-          Get-ChildItem $env:artifactsFolder -Filter "*.snupkg" | ForEach-Object {
-            PushPackage $_.FullName
-          }
+
           
           Write-Host "##[endgroup]"
 
