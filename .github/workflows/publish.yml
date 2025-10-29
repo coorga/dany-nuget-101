@@ -76,5 +76,5 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: nuget-packages-${{ env.version }}
-          path: ${{ env:artifactsFolder }}
+          path: ${{ env.artifactsFolder }}
           retention-days: 30
