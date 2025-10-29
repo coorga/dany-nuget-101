@@ -10,9 +10,7 @@ env:
   artifactsFolder: ./artifacts
   version: 1.1.${{ github.run_number }}
   # Feeds
-  nugetFeedPublic: https://api.nuget.org/v3/index.json
   nugetFeedGitHub: https://nuget.pkg.github.com/coorga/index.json
-  nugetFeedDevExpress: https://nuget.devexpress.com/${{ secrets.DEVEXPRESS_TOKEN }}/api
 
 jobs:
   build:
@@ -108,10 +106,7 @@ jobs:
           
               Write-Host "##[section]🚀 Pushing: $packageName" -ForegroundColor Cyan
           
-              dotnet nuget push $packagePath `
-                --source $env:nugetFeedGitHub `
-                --api-key $env:NUGET_API_KEY `
-                --skip-duplicate
+              dotnet nuget push $packagePath --source GitHub --api-key $env:NUGET_API_KEY --skip-duplicate
           
               Write-Host "  ✅ Pushed: $packageName" -ForegroundColor Green
               Write-Host ""
