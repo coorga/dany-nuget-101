@@ -96,7 +96,7 @@ jobs:
           
               Write-Host "##[section]🚀 Pushing: $packageName" -ForegroundColor Cyan
           
-              dotnet nuget push $packagePath --source github --api-key $env:NUGET_API_KEY --skip-duplicate
+              dotnet nuget push $packagePath --source github --api-key ${{ secrets.GH_PACKAGES_TOKEN }}
           
               Write-Host "  ✅ Pushed: $packageName" -ForegroundColor Green
               Write-Host ""
