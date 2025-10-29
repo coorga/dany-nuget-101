@@ -38,11 +38,7 @@ jobs:
         shell: pwsh
         run: |
           # Entferne existierende Sources (falls vorhanden)
-          dotnet nuget remove source "nuget.org" 2>$null
           dotnet nuget remove source "GitHub" 2>$null
-
-          # Füge Sources hinzu
-          dotnet nuget add source $env:nugetFeedPublic --name "nuget.org"
           
           dotnet nuget add source $env:nugetFeedGitHub --name "GitHub" `
             --username ${{ github.actor }} `
