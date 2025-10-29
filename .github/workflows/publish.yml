@@ -36,14 +36,7 @@ jobs:
       # --- NuGet Sources ---
       - name: 🔧 Configure NuGet sources
         shell: pwsh
-        run: |
-          # Entferne existierende Sources (falls vorhanden)
-          dotnet nuget remove source "GitHub" 2>$null
-          
-          dotnet nuget add source $env:nugetFeedGitHub --name "GitHub" `
-            --username ${{ github.actor }} `
-            --password ${{ secrets.GH_PACKAGES_TOKEN }} `
-            --store-password-in-clear-text
+        run: dotnet nuget add source --username ${{ github.actor }} --password ${{ secrets.GH_PACKAGES_TOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
 
       # --- Artifacts Cleanup ---
       - name: 🧹 Clean artifacts folder
@@ -103,7 +96,7 @@ jobs:
           
               Write-Host "##[section]🚀 Pushing: $packageName" -ForegroundColor Cyan
           
-              dotnet nuget push $packagePath --source GitHub --api-key $env:NUGET_API_KEY --skip-duplicate
+              dotnet nuget push $packagePath --source github --api-key $env:NUGET_API_KEY --skip-duplicate
           
               Write-Host "  ✅ Pushed: $packageName" -ForegroundColor Green
               Write-Host ""
