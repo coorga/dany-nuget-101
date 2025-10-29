@@ -8,70 +8,150 @@ on:
 env:
   buildConfiguration: Release
   artifactsFolder: ./artifacts
-  version: 1.0.${{ github.run_number }}
-  nugetFeedGitHub: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
+  version: 1.1.${{ github.run_number }}
+  # Feeds
+  nugetFeedPublic: https://api.nuget.org/v3/index.json
+  nugetFeedGitHub: https://nuget.pkg.github.com/coorga/index.json
+  nugetFeedDevExpress: https://nuget.devexpress.com/${{ secrets.DEVEXPRESS_TOKEN }}/api
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    
     permissions:
       contents: read
       packages: write
 
     steps:
+      # --- Repository Checkout ---
       - name: 🧭 Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0 # 🔗 Wichtig für SourceLink (vollständige Git-Historie)
 
+      # --- .NET SDK Setup ---
       - name: 🧩 Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 9.0.x
 
+      # --- NuGet Sources ---
+      - name: 🔧 Configure NuGet sources
+        shell: pwsh
+        run: |
+          # Entferne existierende Sources (falls vorhanden)
+          dotnet nuget remove source "nuget.org" 2>$null
+          dotnet nuget remove source "GitHub" 2>$null
+
+          # Füge Sources hinzu
+          dotnet nuget add source $env:nugetFeedPublic --name "nuget.org"
+          
+          dotnet nuget add source $env:nugetFeedGitHub --name "GitHub" `
+            --username ${{ github.actor }} `
+            --password ${{ secrets.GH_PACKAGES_TOKEN }} `
+            --store-password-in-clear-text
+
+      # --- Artifacts Cleanup ---
       - name: 🧹 Clean artifacts folder
         shell: pwsh
         run: |
-          if (Test-Path $env:artifactsFolder) { Remove-Item $env:artifactsFolder -Recurse -Force }
+          if (Test-Path $env:artifactsFolder) { 
+            Remove-Item $env:artifactsFolder -Recurse -Force 
+          }
           New-Item -ItemType Directory -Force -Path $env:artifactsFolder | Out-Null
 
-      - name: 🏗️ Build, Pack & Push Projects
+      # --- Build, Pack & Push ---
+      - name: 🏗️ Build, Pack & Push All Projects
         shell: pwsh
         env:
-          NUGET_API_KEY: ${{ secrets.GITHUB_TOKEN }}
+          NUGET_API_KEY: ${{ secrets.GH_PACKAGES_TOKEN }}
         run: |
-          $buildProps = @(
-            "-p:ContinuousIntegrationBuild=true",
-            "-p:Deterministic=true",
-            "-p:EmbedUntrackedSources=true",
-            "-p:RepositoryBranch=${{ github.ref_name }}",
-            "-p:RepositoryCommit=${{ github.sha }}"
-          ) -join " "
-
+          # ============================================
+          # Hilfsfunktionen
+          # ============================================
+          
           function BuildAndPack {
-            param([string]$projectPath)
-            $name = [System.IO.Path]::GetFileNameWithoutExtension($projectPath)
-            Write-Host "##[section]🧱 Building and Packing: $name"
-
-            dotnet restore $projectPath --no-cache --force
-            dotnet build $projectPath --configuration $env:buildConfiguration --no-restore $buildProps
-            dotnet pack $projectPath --configuration $env:buildConfiguration --no-build -p:PackageVersion=$env:version -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg -o $env:artifactsFolder $buildProps
+              param([string]$path, [string]$name)
+          
+              Write-Host "##[section]🧱 Building and Packing: $name" -ForegroundColor Cyan
+          
+              # Restore mit Force (kein Cache)
+              Write-Host "  📦 Restoring dependencies..." -ForegroundColor Gray
+              dotnet restore $path --no-cache --force
+          
+              # Build
+              # Hinweis: ContinuousIntegrationBuild wird automatisch durch 
+              # Directory.Build.props gesetzt (GITHUB_ACTIONS=true)
+              Write-Host "  🔨 Building..." -ForegroundColor Gray
+              dotnet build $path `
+                --configuration $env:buildConfiguration `
+                --no-restore
+          
+              # Pack
+              # Hinweis: Alle SourceLink-Properties kommen aus Directory.Build.props
+              # Nur PackageVersion muss explizit gesetzt werden
+              Write-Host "  📦 Packing..." -ForegroundColor Gray
+              dotnet pack $path `
+                --configuration $env:buildConfiguration `
+                --no-build `
+                --output $env:artifactsFolder `
+                "/p:PackageVersion=$env:version"
+          
+              Write-Host "  ✅ Done: $name" -ForegroundColor Green
+              Write-Host ""
           }
 
           function PushPackage {
-            param([string]$packagePath)
-            $pkg = [System.IO.Path]::GetFileName($packagePath)
-            Write-Host "##[section]🚀 Pushing: $pkg"
-            dotnet nuget push $packagePath --source $env:nugetFeedGitHub --api-key $env:NUGET_API_KEY --skip-duplicate
+              param([string]$packagePath)
+          
+              $packageName = [System.IO.Path]::GetFileNameWithoutExtension($packagePath)
+          
+              Write-Host "##[section]🚀 Pushing: $packageName" -ForegroundColor Cyan
+          
+              dotnet nuget push $packagePath `
+                --source $env:nugetFeedGitHub `
+                --api-key $env:NUGET_API_KEY `
+                --skip-duplicate
+          
+              Write-Host "  ✅ Pushed: $packageName" -ForegroundColor Green
+              Write-Host ""
+          }
+
+          # ============================================
+          # Build-Reihenfolge (Abhängigkeiten beachten)
+          # ============================================
+          
+          Write-Host "##[group]📦 Building Packages" -ForegroundColor Yellow
+          
+          BuildAndPack "NuGetSample/MyCalculator/MyCalculator.csproj" "MyCalculator"
+          
+          Write-Host "##[endgroup]"
+
+          # ============================================
+          # Push alle .nupkg Pakete (nicht .snupkg)
+          # ============================================
+          
+          Write-Host "##[group]🚀 Pushing Packages to GitHub" -ForegroundColor Yellow
+          
+          Get-ChildItem $env:artifactsFolder -Filter "*.nupkg" -Exclude "*.snupkg" | ForEach-Object {
+            PushPackage $_.FullName
           }
           
-          Get-ChildItem -Recurse -Filter "*.csproj" | ForEach-Object {
-            BuildAndPack $_.FullName
+          Write-Host "##[endgroup]"
+          
+          # ============================================
+          # Push alle .snupkg Symbolpakete
+          # ============================================
+          
+          Write-Host "##[group]🔍 Pushing Symbol Packages to GitHub" -ForegroundColor Yellow
+          
+          Get-ChildItem $env:artifactsFolder -Filter "*.snupkg" | ForEach-Object {
+            PushPackage $_.FullName
           }
+          
+          Write-Host "##[endgroup]"
 
-          Get-ChildItem $env:artifactsFolder -Filter "*.nupkg" -Exclude "*.snupkg" | ForEach-Object { PushPackage $_.FullName }
-          Get-ChildItem $env:artifactsFolder -Filter "*.snupkg" | ForEach-Object { PushPackage $_.FullName }
-
+      # --- Upload artifacts ---
       - name: 📦 Upload NuGet artifacts
         uses: actions/upload-artifact@v4
         with:
