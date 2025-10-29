@@ -22,20 +22,24 @@ jobs:
       - name: Build
         run: dotnet build NuGetSample/NuGetSample.sln --configuration Release
 
-      - name: Pack
-        run: dotnet pack NuGetSample/NuGetSample.sln --configuration Release --no-build -o ./nupkgs
-      
-      - name: Upload NuGet artifacts
+      - name: Pack with version from tag
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "Packing version $VERSION"
+          dotnet pack NuGetSample/NuGetSample.sln --configuration Release --no-build -p:PackageVersion=$VERSION -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg -o ./nupkgs
+
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: MyCalculator-${{ github.ref_name }}
           path: ./nupkgs
           retention-days: 30
-      
+
       - name: Add GitHub Packages source
         run: dotnet nuget add source --username ${{ github.actor }} --password ${{ secrets.GH_PACKAGES_TOKEN }} --store-password-in-clear-text --name github "https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json"
+
+      - name: Publish .nupkg
+        run: dotnet nuget push "./nupkgs/*.nupkg" --source github --api-key ${{ secrets.GH_PACKAGES_TOKEN }}
         
-      - name: Publish to GitHub Packages
-        run: dotnet nuget push "./nupkgs/*.nupkg" --source "github" --api-key ${{ secrets.GH_PACKAGES_TOKEN }} --no-symbols
-        env:
-          NUGET_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
+      - name: Publish .snupkg
+        run: dotnet nuget push "./nupkgs/*.snupkg" --source github --api-key ${{ secrets.GH_PACKAGES_TOKEN }}
