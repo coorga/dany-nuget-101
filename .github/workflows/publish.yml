@@ -9,15 +9,11 @@ env:
   buildConfiguration: Release
   artifactsFolder: ./artifacts
   version: 1.0.${{ github.run_number }}
-  # Feeds
-  nugetFeedPublic: https://api.nuget.org/v3/index.json
-  nugetFeedGitHub: https://nuget.pkg.github.com/coorga/index.json
-  nugetFeedDevExpress: https://nuget.devexpress.com/${{ secrets.DEVEXPRESS_TOKEN }}/api
+  nugetFeedGitHub: https://nuget.pkg.github.com/${{ github.repository_owner }}/index.json
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    
     permissions:
       contents: read
       packages: write
@@ -33,29 +29,18 @@ jobs:
         with:
           dotnet-version: 9.0.x
 
-      - name: 🔧 Configure NuGet sources
-        shell: pwsh
-        run: |
-          dotnet nuget remove source "nuget.org" 2>$null
-          dotnet nuget remove source "GitHub" 2>$null
-          dotnet nuget remove source "DevExpress" 2>$null
-
-          dotnet nuget add source $env:nugetFeedPublic --name "nuget.org"
-          dotnet nuget add source $env:nugetFeedGitHub --name "GitHub" --username ${{ github.actor }} --password ${{ secrets.GITHUB_TOKEN }} --store-password-in-clear-text
-          dotnet nuget add source $env:nugetFeedDevExpress --name "DevExpress"
-
       - name: 🧹 Clean artifacts folder
         shell: pwsh
         run: |
           if (Test-Path $env:artifactsFolder) { Remove-Item $env:artifactsFolder -Recurse -Force }
           New-Item -ItemType Directory -Force -Path $env:artifactsFolder | Out-Null
 
-      - name: 🏗️ Build, Pack & Push All Projects
+      - name: 🏗️ Build, Pack & Push Projects
         shell: pwsh
         env:
           NUGET_API_KEY: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          $commonBuildProps = @(
+          $buildProps = @(
             "-p:ContinuousIntegrationBuild=true",
             "-p:Deterministic=true",
             "-p:EmbedUntrackedSources=true",
@@ -64,55 +49,32 @@ jobs:
           ) -join " "
 
           function BuildAndPack {
-            param([string]$path, [string]$name)
+            param([string]$projectPath)
+            $name = [System.IO.Path]::GetFileNameWithoutExtension($projectPath)
             Write-Host "##[section]🧱 Building and Packing: $name"
 
-            Write-Host "  📦 Restoring dependencies..."
-            dotnet restore $path --no-cache --force
-
-            Write-Host "  🔨 Building..."
-            dotnet build $path --configuration $env:buildConfiguration --no-restore $commonBuildProps
-
-            Write-Host "  📦 Packing..."
-            dotnet pack $path --configuration $env:buildConfiguration --no-build --output $env:artifactsFolder `
-              -p:PackageVersion=$env:version `
-              -p:IncludeSymbols=true `
-              -p:SymbolPackageFormat=snupkg `
-              $commonBuildProps
-
-            Write-Host "  ✅ Done: $name"
-            Write-Host ""
+            dotnet restore $projectPath --no-cache --force
+            dotnet build $projectPath --configuration $env:buildConfiguration --no-restore $buildProps
+            dotnet pack $projectPath --configuration $env:buildConfiguration --no-build -p:PackageVersion=$env:version -p:IncludeSymbols=true -p:SymbolPackageFormat=snupkg -o $env:artifactsFolder $buildProps
           }
 
           function PushPackage {
             param([string]$packagePath)
-            $packageName = [System.IO.Path]::GetFileNameWithoutExtension($packagePath)
-            Write-Host "##[section]🚀 Pushing: $packageName"
+            $pkg = [System.IO.Path]::GetFileName($packagePath)
+            Write-Host "##[section]🚀 Pushing: $pkg"
             dotnet nuget push $packagePath --source $env:nugetFeedGitHub --api-key $env:NUGET_API_KEY --skip-duplicate
-            Write-Host "  ✅ Pushed: $packageName"
-            Write-Host ""
+          }
+          
+          Get-ChildItem -Recurse -Filter "*.csproj" | ForEach-Object {
+            BuildAndPack $_.FullName
           }
 
-          Write-Host "##[group]📦 Building Packages"
-          BuildAndPack "Core/Core.csproj" "CoOrga.DbManagement.Core"
-          BuildAndPack "Core.Xpo/Core.Xpo.csproj" "CoOrga.DbManagement.Core.Xpo"
-          BuildAndPack "Providers.MsSql/Providers.MsSql.csproj" "CoOrga.DbManagement.Providers.MsSql"
-          BuildAndPack "Providers.MsSql.Xpo/Providers.MsSql.Xpo.csproj" "CoOrga.DbManagement.Providers.MsSql.Xpo"
-          BuildAndPack "Providers.PostgreSql/Providers.PostgreSql.csproj" "CoOrga.DbManagement.Providers.PostgreSql"
-          BuildAndPack "Providers.PostgreSql.Xpo/Providers.PostgreSql.Xpo.csproj" "CoOrga.DbManagement.Providers.PostgreSql.Xpo"
-          Write-Host "##[endgroup]"
-
-          Write-Host "##[group]🚀 Pushing Packages to GitHub"
           Get-ChildItem $env:artifactsFolder -Filter "*.nupkg" -Exclude "*.snupkg" | ForEach-Object { PushPackage $_.FullName }
-          Write-Host "##[endgroup]"
-
-          Write-Host "##[group]🔍 Pushing Symbol Packages to GitHub"
           Get-ChildItem $env:artifactsFolder -Filter "*.snupkg" | ForEach-Object { PushPackage $_.FullName }
-          Write-Host "##[endgroup]"
 
       - name: 📦 Upload NuGet artifacts
         uses: actions/upload-artifact@v4
         with:
           name: nuget-packages-${{ env.version }}
-          path: ${{ env.artifactsFolder }}
+          path: ${{ env:artifactsFolder }}
           retention-days: 30
